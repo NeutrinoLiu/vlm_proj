@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/..",
+        "./nuscenes-devkit/python-sdk"
+    ]
+}

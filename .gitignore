@@ -1,0 +1,12 @@
+# any python ignore
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.egg
+*.whl
+
+QA/structured-data/
