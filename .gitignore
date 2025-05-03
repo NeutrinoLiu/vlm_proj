@@ -2,10 +2,11 @@
 __pycache__/
 **/__pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+**/*.py[cod]
 *.pdb
 *.egg-info/
+**/*.egg-info
+**/*.egg
 *.egg
 *.whl
 
