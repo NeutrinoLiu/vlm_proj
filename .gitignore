@@ -11,3 +11,7 @@ __pycache__/
 *.whl
 
 QA/structured-data/
+QA/structured-data-single/
+QA/instance_crops/
+QA/*.yaml
+QA/pairs
