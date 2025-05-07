@@ -34,14 +34,32 @@ class QAInstance:
             [f"{k}: {v}" for k, v in dump_dict.items()]
         )
 
-    def qwen_format(self, preview: bool = False):
+    def qwen_format(self,
+                    all_frames: bool = False,
+                    preview: bool = False):
 
-        # full frames, as a video
-        images = self.ctx["scene"].frames_imgs
-
-        # only useful frames, easier task
-        # images = [f["image_path"] for f in self.ctx["frames"]]
-
+        if all_frames:
+            # all frames, as a video
+            images = self.ctx["scene"].frames_imgs
+        else:
+            # only roi frames, easier task
+            images = [f["image_path"] for f in self.ctx["frames"]]
+        
+        # rel to abs
+        images = [os.path.abspath(img) for img in images]
+        if len(images) == 0:
+            return {
+                "conversations": [
+                    {
+                        "from": "human",
+                        "value": self.Q
+                    },
+                    {
+                        "from": "gpt",
+                        "value": self.A
+                    }
+                ]
+            }
         return {
             "image": images if not preview else (images[:1] + ["..."]),
             "conversations": [

@@ -205,18 +205,23 @@ def index_of_minmax_dist(ctx):
 
 # ------------------------------- frame related ------------------------------ #
 
-def frame_ts_fn(idx):
+def frame_idx_fn(idx, from_zero=False):
     def frame_ts(ctx):
         frames = ctx['frames']
         assert len(frames) > idx, f"query frame index {idx} out of range, only {len(frames)} frames"
-        return str(frames[idx]["timestamp_idx"])
+        return str(frames[idx]["timestamp_idx"]) if not from_zero else "0"
     return frame_ts
 
-def frame_range(ctx):
-    frames = ctx['frames']
+def frame_range_fn(from_zero=False):
+    def frame_range(ctx):
+        frames = ctx['frames']
 
-    assert len(frames) > 0, "frame_range should have at least one frame"
-    return f"{frames[0]['timestamp_idx']} ~ {frames[-1]['timestamp_idx']}"
+        assert len(frames) > 0, "frame_range should have at least one frame"
+
+        if from_zero:
+            return f"0 ~ {len(frames) - 1}"
+        return f"{frames[0]['timestamp_idx']} ~ {frames[-1]['timestamp_idx']}" 
+    return frame_range
 
 # ------------------------------ str generation ------------------------------ #
 
