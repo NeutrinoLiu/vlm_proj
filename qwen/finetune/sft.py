@@ -49,6 +49,7 @@ def main(cfg: DictConfig):
         "--model_cache_path", cache_path,
         "--dataset_use", cfg.datasets,
         "--data_flatten", str(cfg.data_flatten),
+        "--data_packing", str(cfg.data_packing),
         "--tune_mm_vision", str(cfg.tune_mm_vision),
         "--tune_mm_mlp", str(cfg.tune_mm_mlp),
         "--tune_mm_llm", str(cfg.tune_mm_llm),

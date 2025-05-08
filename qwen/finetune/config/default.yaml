@@ -42,6 +42,7 @@ lora_r: 64
 lora_alpha: 16
 
 data_flatten: true
+data_packing: true
 tune_mm_vision: false
 tune_mm_mlp: true
 tune_mm_llm: true

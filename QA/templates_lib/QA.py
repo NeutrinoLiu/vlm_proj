@@ -225,7 +225,7 @@ class QAMCTemplate(QATemplate):
         ans_index_gen = config["ans_index_gen"]
         assert opt_num <= len(QAMCTemplate.OPTIONS), f"Answer number {opt_num} exceeds the number of options {len(QAMCTemplate.OPTIONS)}"
         options = " ".join(
-            [f"({QAMCTemplate.OPTIONS[i]}) <{QAMCTemplate.OPT_PREFIX}_{i}>" for i in range(opt_num)]
+            [f"{QAMCTemplate.OPTIONS[i]}. <{QAMCTemplate.OPT_PREFIX}_{i}>" for i in range(opt_num)]
         )
         options_mappers = [
             (f"{QAMCTemplate.OPT_PREFIX}_{i}", opt_mapper_gen(i)) for i in range(opt_num)
@@ -240,7 +240,7 @@ class QAMCTemplate(QATemplate):
             details = idx[1]
             idx = idx[0]
             assert idx < opt_num, f"Answer index {idx} exceeds the number of options {opt_num}"
-            return QAMCTemplate.OPTIONS[idx]
+            return json.dumps({"ans": QAMCTemplate.OPTIONS[idx]})
         
         merged_mappers = options_mappers + obj_mappers + [
             (QAMCTemplate.ANS_PREFIX, ans_mapper)

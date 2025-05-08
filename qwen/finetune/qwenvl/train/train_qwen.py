@@ -36,6 +36,7 @@ from transformers import (
     Qwen2_5_VLForConditionalGeneration,
 )
 from qwenvl.data.data_qwen import make_supervised_data_module
+from qwenvl.data.data_qwen_packed import make_supervised_data_module_packed
 
 from qwenvl.train.argument import (
     ModelArguments,
@@ -101,7 +102,7 @@ def set_model(model_args, model):
         )
         if local_rank == 0:
             print(f"LoRA finetune for LLM with config:"
-                  f" r={model_args.lora_r}"
+                  f" r={model_args.lora_r}, "
                   f" alpha={model_args.lora_alpha}, "
                   f" dropout={model_args.lora_dropout}, "
                   f" bias={model_args.lora_bias}")
@@ -114,7 +115,52 @@ def set_model(model_args, model):
         for n, p in model.model.named_parameters():
             p.requires_grad = False
         model.lm_head.requires_grad = False
+    
+    return model
 
+def maybe_zero_3(param, ignore_status=False, name=None):
+    from deepspeed import zero
+    from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
+    if hasattr(param, "ds_id"):
+        if param.ds_status == ZeroParamStatus.NOT_AVAILABLE:
+            if not ignore_status:
+                logging.warning(f"{name}: param.ds_status != ZeroParamStatus.NOT_AVAILABLE: {param.ds_status}")
+        with zero.GatheredParameters([param]):
+            param = param.data.detach().cpu().clone()
+    else:
+        param = param.detach().cpu().clone()
+    return param
+
+def get_peft_state_maybe_zero_3(named_params, bias):
+    if bias == "none":
+        to_return = {k: t for k, t in named_params if "lora_" in k}
+    elif bias == "all":
+        to_return = {k: t for k, t in named_params if "lora_" in k or "bias" in k}
+    elif bias == "lora_only":
+        to_return = {}
+        maybe_lora_bias = {}
+        lora_bias_names = set()
+        for k, t in named_params:
+            if "lora_" in k:
+                to_return[k] = t
+                bias_name = k.split("lora_")[0] + "bias"
+                lora_bias_names.add(bias_name)
+            elif "bias" in k:
+                maybe_lora_bias[k] = t
+        for k, t in maybe_lora_bias:
+            if bias_name in lora_bias_names:
+                to_return[bias_name] = t
+    else:
+        raise NotImplementedError
+    to_return = {k: maybe_zero_3(v, ignore_status=True) for k, v in to_return.items()}
+    return to_return
+
+def get_peft_state_non_lora_maybe_zero_3(named_params, require_grad_only=True):
+    to_return = {k: t for k, t in named_params if "lora_" not in k}
+    if require_grad_only:
+        to_return = {k: t for k, t in to_return.items() if t.requires_grad}
+    to_return = {k: maybe_zero_3(v, ignore_status=True).cpu() for k, v in to_return.items()}
+    return to_return
 
 def train(attn_implementation="flash_attention_2"):
     global local_rank
@@ -171,13 +217,23 @@ def train(attn_implementation="flash_attention_2"):
         padding_side="right",
         use_fast=False,
     )
-    set_model(model_args, model)
+
+    model = set_model(model_args, model)
 
     if torch.distributed.get_rank() == 0:
-        model.visual.print_trainable_parameters()
-        model.model.print_trainable_parameters()
+        print(f"type of model: {type(model)}")
+        print(f"type of model.base_model: {type(model.base_model)}")
+        print(f"type of model.model.model: {type(model.model.model)}")
+        print(f"type of model.model.visual: {type(model.model.visual)}")
+        model.model.visual.print_trainable_parameters()
+        model.model.model.print_trainable_parameters()
 
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
+    if data_args.data_packing:
+        data_module = make_supervised_data_module_packed(
+            tokenizer=tokenizer, data_args=data_args
+        )
+    else:
+        data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
     trainer = Trainer(
         model=model, processing_class=tokenizer, args=training_args, **data_module
     )
@@ -187,16 +243,29 @@ def train(attn_implementation="flash_attention_2"):
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
+
     trainer.save_state()
     data_args.image_processor.save_pretrained(training_args.output_dir)
-
-    source_path = os.path.join(model_args.model_cache_path, "chat_template.json")
-    template_path = os.path.join(training_args.output_dir, "chat_template.json")
-    shutil.copy2(source_path, template_path)
+    tokenizer.save_pretrained(training_args.output_dir)
 
     model.config.use_cache = True
 
-    safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
+    if model_args.lora_llm:
+        state_dict = get_peft_state_maybe_zero_3(
+            model.named_parameters(), model_args.lora_bias
+        )
+        non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(
+            model.named_parameters()
+        )
+        if training_args.local_rank == 0 or training_args.local_rank == -1:
+            # save lora confgi
+            model.config.save_pretrained(training_args.output_dir)
+            # save lora state dict
+            model.save_pretrained(training_args.output_dir, state_dict=state_dict)
+            # save non lora state dict
+            torch.save(non_lora_state_dict, os.path.join(training_args.output_dir, 'non_lora_trainables.bin'))
+    else:
+        safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import random
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import yaml
-
+import json
 
 class InvalidQAContext(Exception):
     def __init__(self, func_name):
@@ -14,6 +14,23 @@ def anno_of_obj_from_frame(frame, obj):
         if anno["instance_token"] == token:
             return anno
     return None
+
+from json import encoder
+encoder.FLOAT_REPR = lambda o: format(o, '.2f')
+
+def rp(obj, ndigits=2):
+    # reduced precision
+    if isinstance(obj, float):
+        return round(obj, ndigits)
+    elif isinstance(obj, dict):
+        return {k: rp(v, ndigits) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [rp(elem, ndigits) for elem in obj]
+    else:
+        return obj
+
+dist_json = lambda x: json.dumps({"dist": rp(x)})
+xy_json = lambda x, y: json.dumps({"x": rp(x), "y": rp(y)})
 
 # --------------------------- physicals calculation -------------------------- #
 
@@ -57,7 +74,7 @@ def obj_cam_dist_fn(idx):
         cam_t = frame["cam_t"]
         obj_t = anno["box_t"]
         cam_dist = dist(cam_t, obj_t)
-        return f"{cam_dist:.2f}"
+        return dist_json(cam_dist)
     return obj_cam_dist
 
 def obj_dist_between(ctx):
@@ -78,7 +95,7 @@ def obj_dist_between(ctx):
     obj1_t = anno1["box_t"]
     obj2_t = anno2["box_t"]
     between_dist = dist(obj1_t, obj2_t)
-    return f"{between_dist:.2f}"
+    return dist_json(between_dist)
 
 def obj_cam_dist_minmax(ctx):
     objs = ctx['objs']
@@ -103,7 +120,7 @@ def obj_cam_dist_minmax(ctx):
             dist(cam_t, obj_t)
         )
 
-    return f"{fn(cam_dists):.2f}"
+    return dist_json(fn(cam_dists))
 
 def obj_dist_between_minmax(ctx):
     objs = ctx['objs']
@@ -133,7 +150,7 @@ def obj_dist_between_minmax(ctx):
     if len(between_dists) == 0:
         raise InvalidQAContext("obj_dist_between_minmax")
 
-    return f"{fn(between_dists):.2f}"
+    return dist_json(fn(between_dists))
 
 
 def local_coords(anno, frame):
@@ -164,7 +181,7 @@ def obj_local_coords_fn(idx):
         assert anno is not None, f"Object {obj['instance_token']} not found in frame {frame['sample_data_token']}"
 
         x, y = local_coords(anno, frame)
-        return f"{x:.2f} {y:.2f}"
+        return xy_json(x, y)
 
     return obj_local_coords
 
