@@ -15,3 +15,6 @@ QA/structured-data-single/
 QA/instance_crops/
 QA/*.yaml
 QA/pairs
+
+**/output/
+**/wandb/
