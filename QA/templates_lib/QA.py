@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import os
 import json
 import random
+from templates_lib.func import mc_json
 
 @dataclass
 class QAInstance:
@@ -240,7 +241,7 @@ class QAMCTemplate(QATemplate):
             details = idx[1]
             idx = idx[0]
             assert idx < opt_num, f"Answer index {idx} exceeds the number of options {opt_num}"
-            return json.dumps({"ans": QAMCTemplate.OPTIONS[idx]})
+            return mc_json(QAMCTemplate.OPTIONS[idx])
         
         merged_mappers = options_mappers + obj_mappers + [
             (QAMCTemplate.ANS_PREFIX, ans_mapper)

@@ -29,8 +29,9 @@ def rp(obj, ndigits=2):
     else:
         return obj
 
-dist_json = lambda x: json.dumps({"dist": rp(x)})
-xy_json = lambda x, y: json.dumps({"x": rp(x), "y": rp(y)})
+dist_json = lambda x: "```json\n" + json.dumps({"dist": rp(x)}) + "\n```"
+xy_json = lambda x, y: "```json\n" + json.dumps({"x": rp(x), "y": rp(y)}) + "\n```"
+mc_json = lambda mc: "```json\n" + json.dumps({"ans": mc}) + "\n```"
 
 # --------------------------- physicals calculation -------------------------- #
 

@@ -143,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-max-length", type=int, default=8192)
     parser.add_argument("--max-pixels", type=int, default=50176)
     parser.add_argument("--min-pixels", type=int, default=786)
-    parser.add_argument("--base_only", action="store_true", help="Whether to load lora model")
+    parser.add_argument("--base-only", action="store_true", help="Whether to load lora model")
     args = parser.parse_args()
 
     print(" >>> Arguments:")
