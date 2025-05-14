@@ -32,7 +32,19 @@ def rp(obj, ndigits=2):
 dist_json = lambda x: "```json\n" + json.dumps({"dist": rp(x)}) + "\n```"
 xy_json = lambda x, y: "```json\n" + json.dumps({"x": rp(x), "y": rp(y)}) + "\n```"
 mc_json = lambda mc: "```json\n" + json.dumps({"ans": mc}) + "\n```"
+def json_unwrap(s):
+    if s.startswith("```json"):
+        s = s[7:]
+    if s.endswith("```"):
+        s = s[:-3]
 
+    try:
+        obj = json.loads(s)
+    except json.JSONDecodeError:
+        print(f"fail to parse json: {s}")
+        raise
+
+    return obj
 # --------------------------- physicals calculation -------------------------- #
 
 dist = lambda pt1, pt2: ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2 + (pt1[2] - pt2[2]) ** 2) ** 0.5
@@ -221,6 +233,10 @@ def index_of_minmax_dist(ctx):
         raise InvalidQAContext("index_of_minmax_dist")
     return idx_of_minmax, cam_dists
 
+def index_of_roulette(ctx):
+    assert "roulette_correct_idx" in ctx, "roulette should be in context"
+    return ctx["roulette_correct_idx"], None
+
 # ------------------------------- frame related ------------------------------ #
 
 def frame_idx_fn(idx, from_zero=False):
@@ -249,3 +265,35 @@ def minmax(min_prompt="minimal", max_prompt="maximal"):
         ctx['minmax'] = minmax
         return f"{min_prompt if minmax == 'min' else max_prompt}"
     return minmax_fn
+
+# ------------------------ turn metrics qa into mc qa ------------------------ #
+
+ROULETTE_PERTURB = 0.15
+def roulette(gt_fn, max_opts=5):
+    def roulette_option_gen(idx):
+        if idx == 0:
+            # init ctx with correct_idx "roulette_correct_idx"
+            # init ctx with all_options "roulette_options"
+            def roulette_init(ctx):
+                correct_ans = gt_fn(ctx)
+                if isinstance(correct_ans, str):
+                    correct_ans = json_unwrap(correct_ans)
+                correct_idx = random.randint(0, max_opts - 1)
+                ctx["roulette_correct_idx"] = correct_idx
+                ctx["roulette_options"] = [None] * max_opts
+                for i in range(max_opts):
+                    shift = (i - correct_idx) * ROULETTE_PERTURB
+                    dummy_ans = {
+                        k: v * (1 + shift) if isinstance(v, float) else v for k, v in correct_ans.items()
+                    }
+                    dummy_ans = rp(dummy_ans)
+                    dummy_ans = ", ".join([str(v) for _, v in dummy_ans.items()])
+                    ctx["roulette_options"][i] = dummy_ans
+                return ctx["roulette_options"][0]
+            return roulette_init
+        else:
+            def roulette_fetch(ctx):
+                assert "roulette_options" in ctx, "roulette should be in context"
+                return ctx["roulette_options"][idx]
+            return roulette_fetch
+    return roulette_option_gen

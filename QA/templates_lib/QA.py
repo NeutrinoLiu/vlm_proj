@@ -221,13 +221,14 @@ class QAMCTemplate(QATemplate):
     ANS_PREFIX = "MC_ANSWER_PLACEHOLDER"
 
     def __init__(self, Q_temp: str, A_temp, obj_mappers: list, obj_filter, config):
-        opt_num = config["num_objs"]
+        opt_num = config["num_options"]
         opt_mapper_gen = config["opt_mapper_gen"]
         ans_index_gen = config["ans_index_gen"]
         assert opt_num <= len(QAMCTemplate.OPTIONS), f"Answer number {opt_num} exceeds the number of options {len(QAMCTemplate.OPTIONS)}"
-        options = " ".join(
+        options = "\n".join(
             [f"{QAMCTemplate.OPTIONS[i]}. <{QAMCTemplate.OPT_PREFIX}_{i}>" for i in range(opt_num)]
         )
+        options = f"\n{options}\n"
         options_mappers = [
             (f"{QAMCTemplate.OPT_PREFIX}_{i}", opt_mapper_gen(i)) for i in range(opt_num)
         ]
