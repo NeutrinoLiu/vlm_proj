@@ -48,6 +48,7 @@ def json_unwrap(s):
 # --------------------------- physicals calculation -------------------------- #
 
 dist = lambda pt1, pt2: ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2 + (pt1[2] - pt2[2]) ** 2) ** 0.5
+dist_tolerate = lambda pt1, pt2 : dist(pt1, pt2) if dist(pt1, pt2) > 0.1 else 0.0
 
 class Captioner:
     def __init__(self, cap_file):
@@ -165,6 +166,44 @@ def obj_dist_between_minmax(ctx):
 
     return dist_json(fn(between_dists))
 
+# ----------------------- cross frame movement related ----------------------- #
+
+def ego_movement_calc(ctx):
+    frames = ctx['frames']
+    assert len(frames) > 1, f"ego_movement_calc should have at least two frames, but got {len(frames)}"
+    ego_t0 = frames[0]["cam_t"]
+    ego_t1 = frames[-1]["cam_t"]
+
+    movement = dist_tolerate(ego_t0, ego_t1)
+    return dist_json(movement)
+
+def obj_movement_fn(idx):
+    def obj_movement(ctx):
+        objs = ctx['objs']
+        frames = ctx['frames']
+        assert len(objs) > idx, f"query object index {idx} out of range, only {len(objs)} objects"
+        assert len(frames) > 1, f"obj_movement should have at least two frames, but got {len(frames)}"
+        obj = objs[idx]
+        obj_t0 = None
+        obj_t1 = None
+        for frame in frames:
+            anno = anno_of_obj_from_frame(frame, obj)
+            if anno is None: continue
+            if obj_t0 is None:
+                obj_t0 = anno["box_t"]
+            else:
+                obj_t1 = anno["box_t"]
+                break
+
+        if obj_t0 is None or obj_t1 is None:
+            raise InvalidQAContext("obj_movement, object not found in frames")
+
+        movement = dist_tolerate(obj_t0, obj_t1)
+        return dist_json(movement)
+    return obj_movement
+
+
+# coords related
 
 def local_coords(anno, frame):
     cam_quat = np.array(frame["cam_r"]) # w, x, y, z
@@ -199,6 +238,27 @@ def obj_local_coords_fn(idx):
     return obj_local_coords
 
 # ---------------------------- indexing functions ---------------------------- #
+
+def index_of_minmax_fn(val_fn):
+    def index_of_minmax(ctx):
+        objs = ctx['objs']
+        if ctx['minmax'] == 'min':
+            minmax_fn = min
+        elif ctx['minmax'] == 'max':
+            minmax_fn = max
+        else:
+            raise ValueError(f"minmax should be 'min' or 'max', but got {ctx['minmax']}")
+
+        assert len(objs) > 1, f"index_of_minmax should have multiple objects, but got {len(objs)}"
+
+        val = []
+        for idx, obj in enumerate(objs):
+            val_fn_impl = val_fn(idx)
+            val.append(val_fn_impl(ctx))
+        
+        idx_of_minmax = val.index(minmax_fn(val))
+        return idx_of_minmax, val
+    return index_of_minmax
 
 def index_of_minmax_dist(ctx):
     objs = ctx['objs']
@@ -268,21 +328,21 @@ def minmax(min_prompt="minimal", max_prompt="maximal"):
 
 # ------------------------ turn metrics qa into mc qa ------------------------ #
 
-ROULETTE_PERTURB = 0.15
-def roulette(gt_fn, max_opts=5):
+def roulette(gt_fn, max_opts=5, perturb=0.15):
     def roulette_option_gen(idx):
         if idx == 0:
             # init ctx with correct_idx "roulette_correct_idx"
             # init ctx with all_options "roulette_options"
             def roulette_init(ctx):
                 correct_ans = gt_fn(ctx)
+                # dont have to be json format when displaying options
                 if isinstance(correct_ans, str):
                     correct_ans = json_unwrap(correct_ans)
                 correct_idx = random.randint(0, max_opts - 1)
                 ctx["roulette_correct_idx"] = correct_idx
                 ctx["roulette_options"] = [None] * max_opts
                 for i in range(max_opts):
-                    shift = (i - correct_idx) * ROULETTE_PERTURB
+                    shift = (i - correct_idx) * perturb
                     dummy_ans = {
                         k: v * (1 + shift) if isinstance(v, float) else v for k, v in correct_ans.items()
                     }

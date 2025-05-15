@@ -244,7 +244,7 @@ class QAMCTemplate(QATemplate):
             assert idx < opt_num, f"Answer index {idx} exceeds the number of options {opt_num}"
             return mc_json(QAMCTemplate.OPTIONS[idx])
         
-        merged_mappers = options_mappers + obj_mappers + [
+        merged_mappers = obj_mappers + options_mappers + [
             (QAMCTemplate.ANS_PREFIX, ans_mapper)
         ]
         super().__init__(Q_temp_with_opts, A_temp, merged_mappers, obj_filter, config)
